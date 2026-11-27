@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VulnShop Penetration Test Report</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #090c0b; color: #eef4f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(circle at 85% 0, #123b2d 0, transparent 32rem), #090c0b; line-height: 1.65; }
+    .shell { width: min(1080px, 92vw); margin: 0 auto; padding: 4rem 0 6rem; }
+    header { padding: 3rem; border: 1px solid #33413b; border-radius: 1rem; background: rgba(17, 24, 21, .92); }
+    .eyebrow { color: #75f0b9; font-size: .78rem; font-weight: 800; letter-spacing: .16em; }
+    h1 { max-width: 800px; margin: .5rem 0 1.4rem; font-size: clamp(2.8rem, 7vw, 5.6rem); line-height: .96; letter-spacing: -.065em; }
+    h2 { margin: 3.5rem 0 1rem; font-size: 1.8rem; letter-spacing: -.025em; }
+    h3 { margin: 2rem 0 .6rem; font-size: 1.15rem; }
+    p, li { color: #bac6c1; }
+    .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-top: 2rem; }
+    .meta div { padding: .9rem; border: 1px solid #33413b; border-radius: .6rem; background: #0d1210; }
+    .meta span { display: block; color: #7e8c86; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; }
+    .meta strong { display: block; margin-top: .2rem; color: #eef4f1; }
+    .summary { margin: 2rem 0; padding: 1.5rem; border-left: 3px solid #75f0b9; background: #101714; }
+    .table-wrap { overflow-x: auto; border: 1px solid #33413b; border-radius: .7rem; }
+    table { width: 100%; border-collapse: collapse; background: #0f1512; }
+    th, td { padding: .85rem 1rem; border-bottom: 1px solid #2a3530; text-align: left; white-space: nowrap; }
+    th { color: #8c9a94; font-size: .74rem; letter-spacing: .09em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .finding { margin-top: 2rem; padding: 2rem; border: 1px solid #33413b; border-radius: .8rem; background: #101613; }
+    .finding h2 { margin-top: 0; }
+    .badge { display: inline-block; padding: .25rem .55rem; border-radius: 99px; font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .critical { color: #ffd1cd; background: #5c1e19; }
+    .high { color: #ffe2c2; background: #573216; }
+    .medium { color: #fff0ba; background: #4d4215; }
+    .low { color: #cde5ff; background: #173850; }
+    .info { color: #d3ddd9; background: #303a36; }
+    code { color: #8cf5c5; font-family: "Cascadia Code", Consolas, monospace; }
+    pre { overflow-x: auto; padding: 1rem; border: 1px solid #33413b; border-radius: .55rem; background: #080b0a; color: #8cf5c5; }
+    ol { padding-left: 1.3rem; }
+    footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid #33413b; color: #76847e; }
+    @media (max-width: 760px) { .shell { padding-top: 1rem; } header, .finding { padding: 1.25rem; } .meta { grid-template-columns: 1fr 1fr; } }
+    @media print { :root { color-scheme: light; } body { background: white; color: #111; } .shell { width: 100%; padding: 0; } header, .finding, table, .meta div, .summary { background: white; color: #111; break-inside: avoid; } p, li { color: #333; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="eyebrow">SECURITY ASSESSMENT</div>
+      <h1>VulnShop Penetration Test Report</h1>
+      <p>Local application assessment covering input handling, object-level authorization, database query construction, error disclosure, and browser hardening.</p>
+      <div class="meta">
+        <div><span>Date</span><strong>2026-11-27</strong></div>
+        <div><span>Target</span><strong>127.0.0.1:8000</strong></div>
+        <div><span>Assessment</span><strong>HTTP + source review</strong></div>
+        <div><span>Findings</span><strong>5 confirmed</strong></div>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>Executive summary</h2>
+        <div class="summary">
+          <p>The assessment confirmed exploitable SQL injection, insecure direct object reference, and reflected cross-site scripting. An unauthenticated client can alter product database queries, retrieve other users' orders, enumerate every order through a special identifier, and inject active HTML or JavaScript into the search response.</p>
+          <p>This application is an intentionally vulnerable localhost training lab. The severity ratings describe how these flaws would be treated in a deployed application. The tested in-memory records have no production value.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Results summary</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Finding</th><th>Severity</th><th>CVSS 3.1</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>VS-01</td><td>SQL injection in product search</td><td><span class="badge critical">Critical</span></td><td>9.8</td><td>Confirmed</td></tr>
+              <tr><td>VS-02</td><td>IDOR and unrestricted order enumeration</td><td><span class="badge high">High</span></td><td>7.5</td><td>Confirmed</td></tr>
+              <tr><td>VS-03</td><td>Reflected cross-site scripting</td><td><span class="badge medium">Medium</span></td><td>6.1</td><td>Confirmed</td></tr>
+              <tr><td>VS-04</td><td>Database error disclosure</td><td><span class="badge low">Low</span></td><td>3.7</td><td>Confirmed</td></tr>
+              <tr><td>VS-05</td><td>Missing browser hardening headers</td><td><span class="badge info">Informational</span></td><td>N/A</td><td>Confirmed</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <article class="finding">
+        <span class="badge critical">Critical</span>
+        <h2>VS-01 — SQL injection in product search</h2>
+        <p><strong>Affected route</strong> <code>GET /sqli?search=</code></p>
+        <p>The application concatenates the <code>search</code> parameter directly into a SQL statement. Client-supplied syntax is interpreted by SQLite.</p>
+        <h3>Evidence</h3>
+        <p>A tautology returned all four products.</p>
+        <pre><code>' OR 1=1 -- </code></pre>
+        <p>A union query introduced a controlled result row named <code>Injected</code>.</p>
+        <pre><code>' UNION SELECT 999,'Injected','Controlled row',1 -- </code></pre>
+        <h3>Impact</h3>
+        <p>An attacker can bypass query filters and read data available to the database connection. Depending on database permissions, the flaw may also permit modification, deletion, authentication bypass, or service disruption.</p>
+        <h3>Remediation</h3>
+        <pre><code>const rows = db
+  .prepare('SELECT id, name, description, price FROM products WHERE name LIKE ?')
+  .all(`%${search}%`);</code></pre>
+        <p>Use parameterized statements, least-privilege database identities, and regression tests containing quotes, comment tokens, and boolean expressions.</p>
+      </article>
+
+      <article class="finding">
+        <span class="badge high">High</span>
+        <h2>VS-02 — IDOR and unrestricted order enumeration</h2>
+        <p><strong>Affected route</strong> <code>GET /idor?as=&amp;order_id=</code></p>
+        <p>The order lookup does not verify ownership. The <code>as</code> parameter controls the displayed identity without trusted authentication, while order ID <code>0</code> returns every order.</p>
+        <h3>Evidence</h3>
+        <pre><code>GET /idor?as=alice&amp;order_id=2001
+GET /idor?as=alice&amp;order_id=0</code></pre>
+        <p>Alice could read Bob's order. The enumeration request returned four receipts, including order <code>#3001</code>, owner <code>meow</code>, item <code>Catnip</code>, total <code>¥10,000</code>, and shipping destination <code>Yokohama</code>.</p>
+        <h3>Impact</h3>
+        <p>An attacker can retrieve another user's order contents and shipping information. Sequential IDs permit targeted enumeration, while the magic zero value exposes the complete collection.</p>
+        <h3>Remediation</h3>
+        <pre><code>const order = db
+  .prepare('SELECT * FROM orders WHERE id = ? AND owner = ?')
+  .get(Number(orderId), authenticatedUser);</code></pre>
+        <p>Use a trusted server-side identity, remove the zero-ID behavior, and return the same generic response for nonexistent and unauthorized records.</p>
+      </article>
+
+      <article class="finding">
+        <span class="badge medium">Medium</span>
+        <h2>VS-03 — Reflected cross-site scripting</h2>
+        <p><strong>Affected route</strong> <code>GET /xss?q=</code></p>
+        <p>The <code>q</code> parameter is inserted into HTML without output encoding. The following payload was returned unchanged inside the result element.</p>
+        <pre><code>&lt;img src=x onerror=alert(document.domain)&gt;</code></pre>
+        <h3>Impact</h3>
+        <p>A crafted link can execute JavaScript in the VulnShop origin when opened by another user, enabling actions or data access available to the victim.</p>
+        <h3>Remediation</h3>
+        <pre><code>result = `&lt;div class="result"&gt;Showing results for
+  &lt;strong&gt;${escapeHtml(query)}&lt;/strong&gt;&lt;/div&gt;`;</code></pre>
+        <p>Apply context-aware output encoding and deploy a restrictive Content Security Policy as an additional control.</p>
+      </article>
+
+      <article class="finding">
+        <span class="badge low">Low</span>
+        <h2>VS-04 — Database error disclosure</h2>
+        <p>Malformed search input returns SQLite errors directly to the client. A single quote produced a visible <code>Database error</code> response, helping an attacker identify query parsing behavior.</p>
+        <h3>Remediation</h3>
+        <p>Log detailed errors on the server and return a stable generic message with an internal correlation identifier.</p>
+      </article>
+
+      <article class="finding">
+        <span class="badge info">Informational</span>
+        <h2>VS-05 — Missing browser hardening headers</h2>
+        <p>The application returns <code>X-Content-Type-Options: nosniff</code>, but no Content Security Policy or frame-protection directive was present.</p>
+        <h3>Remediation</h3>
+        <p>Add a restrictive Content Security Policy after fixing the XSS sink. Use the CSP <code>frame-ancestors</code> directive to control framing.</p>
+      </article>
+
+      <section>
+        <h2>Methodology</h2>
+        <p>Testing included endpoint discovery, parameter manipulation, reflected-input analysis, object-level authorization checks, SQL metacharacter and union-query testing, response-header inspection, and targeted source review. All active testing was restricted to <code>127.0.0.1:8000</code> and the seeded in-memory database.</p>
+      </section>
+
+      <section>
+        <h2>Limitations</h2>
+        <p>The assessment covered the current HTTP routes and source code. Deployment infrastructure, TLS, third-party dependencies, persistence layers, and authenticated session management were outside scope because those components are absent from this local lab. Browser execution was inferred from the confirmed raw XSS response and standard HTML behavior. No external systems were tested.</p>
+      </section>
+
+      <section>
+        <h2>Recommended remediation order</h2>
+        <ol>
+          <li>Replace SQL string concatenation with parameterized statements.</li>
+          <li>Implement trusted authentication and per-order ownership checks, then remove the <code>order_id=0</code> behavior.</li>
+          <li>Encode reflected output and deploy a restrictive Content Security Policy.</li>
+          <li>Replace client-visible database errors with generic responses.</li>
+          <li>Add automated regression tests for the three primary vulnerabilities.</li>
+        </ol>
+      </section>
+    </main>
+
+    <footer>VulnShop local security training report · Generated 2026-11-27</footer>
+  </div>
+</body>
+</html>

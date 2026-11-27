@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VulnShop ペネトレーションテスト報告書</title>
+  <style>
+    :root { color-scheme: dark; font-family: "Yu Gothic UI", "Hiragino Kaku Gothic ProN", Meiryo, system-ui, sans-serif; background: #090c0b; color: #eef4f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(circle at 85% 0, #123b2d 0, transparent 32rem), #090c0b; line-height: 1.8; }
+    .shell { width: min(1080px, 92vw); margin: 0 auto; padding: 4rem 0 6rem; }
+    header { padding: 3rem; border: 1px solid #33413b; border-radius: 1rem; background: rgba(17, 24, 21, .92); }
+    .eyebrow { color: #75f0b9; font-size: .78rem; font-weight: 800; letter-spacing: .16em; }
+    h1 { max-width: 850px; margin: .5rem 0 1.4rem; font-size: clamp(2.8rem, 7vw, 5.3rem); line-height: 1.08; letter-spacing: -.055em; }
+    h2 { margin: 3.5rem 0 1rem; font-size: 1.8rem; letter-spacing: -.025em; }
+    h3 { margin: 2rem 0 .6rem; font-size: 1.15rem; }
+    p, li { color: #bac6c1; }
+    .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-top: 2rem; }
+    .meta div { padding: .9rem; border: 1px solid #33413b; border-radius: .6rem; background: #0d1210; }
+    .meta span { display: block; color: #7e8c86; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; }
+    .meta strong { display: block; margin-top: .2rem; color: #eef4f1; }
+    .summary { margin: 2rem 0; padding: 1.5rem; border-left: 3px solid #75f0b9; background: #101714; }
+    .table-wrap { overflow-x: auto; border: 1px solid #33413b; border-radius: .7rem; }
+    table { width: 100%; border-collapse: collapse; background: #0f1512; }
+    th, td { padding: .85rem 1rem; border-bottom: 1px solid #2a3530; text-align: left; white-space: nowrap; }
+    th { color: #8c9a94; font-size: .74rem; letter-spacing: .09em; }
+    tr:last-child td { border-bottom: 0; }
+    .finding { margin-top: 2rem; padding: 2rem; border: 1px solid #33413b; border-radius: .8rem; background: #101613; }
+    .finding h2 { margin-top: 0; }
+    .badge { display: inline-block; padding: .25rem .55rem; border-radius: 99px; font-size: .75rem; font-weight: 800; letter-spacing: .06em; }
+    .critical { color: #ffd1cd; background: #5c1e19; }
+    .high { color: #ffe2c2; background: #573216; }
+    .medium { color: #fff0ba; background: #4d4215; }
+    .low { color: #cde5ff; background: #173850; }
+    .info { color: #d3ddd9; background: #303a36; }
+    code { color: #8cf5c5; font-family: "Cascadia Code", Consolas, monospace; }
+    pre { overflow-x: auto; padding: 1rem; border: 1px solid #33413b; border-radius: .55rem; background: #080b0a; color: #8cf5c5; }
+    ol { padding-left: 1.5rem; }
+    footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid #33413b; color: #76847e; }
+    @media (max-width: 760px) { .shell { padding-top: 1rem; } header, .finding { padding: 1.25rem; } .meta { grid-template-columns: 1fr 1fr; } }
+    @media print { :root { color-scheme: light; } body { background: white; color: #111; } .shell { width: 100%; padding: 0; } header, .finding, table, .meta div, .summary { background: white; color: #111; break-inside: avoid; } p, li { color: #333; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="eyebrow">セキュリティ評価</div>
+      <h1>VulnShop<br>ペネトレーションテスト報告書</h1>
+      <p>入力処理、オブジェクト単位の認可、データベースクエリの構築、エラー情報の開示、ブラウザーの防御強化を対象としたローカルアプリケーション評価です。</p>
+      <div class="meta">
+        <div><span>評価日</span><strong>2026年11月27日</strong></div>
+        <div><span>対象</span><strong>127.0.0.1:8000</strong></div>
+        <div><span>評価方法</span><strong>HTTP + ソースレビュー</strong></div>
+        <div><span>検出事項</span><strong>5件確認</strong></div>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>エグゼクティブサマリー</h2>
+        <div class="summary">
+          <p>本評価では、悪用可能なSQLインジェクション、安全でない直接オブジェクト参照、反射型クロスサイトスクリプティングを確認しました。認証されていないクライアントが商品データベースのクエリを改変し、他ユーザーの注文を取得し、特殊な識別子によってすべての注文を列挙し、検索レスポンスへ動作可能なHTMLまたはJavaScriptを挿入できます。</p>
+          <p>このアプリケーションは、意図的に脆弱に設計されたlocalhost上の学習用ラボです。深刻度は、同じ問題が実運用環境へ展開された場合を想定しています。テスト対象のインメモリレコードに実運用上の価値はありません。</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>結果一覧</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>検出事項</th><th>深刻度</th><th>CVSS 3.1</th><th>状態</th></tr></thead>
+            <tbody>
+              <tr><td>VS-01</td><td>商品検索のSQLインジェクション</td><td><span class="badge critical">緊急</span></td><td>9.8</td><td>確認済み</td></tr>
+              <tr><td>VS-02</td><td>IDORおよび無制限の注文列挙</td><td><span class="badge high">高</span></td><td>7.5</td><td>確認済み</td></tr>
+              <tr><td>VS-03</td><td>反射型クロスサイトスクリプティング</td><td><span class="badge medium">中</span></td><td>6.1</td><td>確認済み</td></tr>
+              <tr><td>VS-04</td><td>データベースエラー情報の開示</td><td><span class="badge low">低</span></td><td>3.7</td><td>確認済み</td></tr>
+              <tr><td>VS-05</td><td>ブラウザー防御ヘッダーの不足</td><td><span class="badge info">情報</span></td><td>該当なし</td><td>確認済み</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <article class="finding">
+        <span class="badge critical">緊急</span>
+        <h2>VS-01 — 商品検索のSQLインジェクション</h2>
+        <p><strong>影響を受けるルート</strong> <code>GET /sqli?search=</code></p>
+        <p>アプリケーションは、<code>search</code>パラメーターをSQL文へ直接連結しています。そのため、クライアントが送信した構文がSQLiteによってSQLとして解釈されます。</p>
+        <h3>確認内容</h3>
+        <p>次の恒真条件により、4件すべての商品が返されました。</p>
+        <pre><code>' OR 1=1 -- </code></pre>
+        <p>次のUNIONクエリにより、<code>Injected</code>という攻撃者が制御する結果行が挿入されました。</p>
+        <pre><code>' UNION SELECT 999,'Injected','Controlled row',1 -- </code></pre>
+        <h3>影響</h3>
+        <p>攻撃者は検索フィルターを回避し、データベース接続から参照可能な情報を読み取れます。データベースの権限によっては、データの変更や削除、認証回避、サービス妨害につながる可能性もあります。</p>
+        <h3>対策</h3>
+        <pre><code>const rows = db
+  .prepare('SELECT id, name, description, price FROM products WHERE name LIKE ?')
+  .all(`%${search}%`);</code></pre>
+        <p>パラメーター化クエリと最小権限のデータベースユーザーを使用してください。引用符、コメント記号、論理式を入力しても検索文字列として処理されることを自動テストで確認してください。</p>
+      </article>
+
+      <article class="finding">
+        <span class="badge high">高</span>
+        <h2>VS-02 — IDORおよび無制限の注文列挙</h2>
+        <p><strong>影響を受けるルート</strong> <code>GET /idor?as=&amp;order_id=</code></p>
+        <p>注文の取得時に所有者が検証されません。<code>as</code>パラメーターによって信頼できる認証なしに表示上のユーザーを変更でき、注文ID <code>0</code>を指定するとすべての注文が返されます。</p>
+        <h3>確認内容</h3>
+        <pre><code>GET /idor?as=alice&amp;order_id=2001
+GET /idor?as=alice&amp;order_id=0</code></pre>
+        <p>AliceとしてBobの注文を参照できました。全件取得では4件の注文が返され、注文<code>#3001</code>、所有者<code>meow</code>、商品<code>Catnip</code>、合計<code>¥10,000</code>、配送先<code>Yokohama</code>も含まれていました。</p>
+        <h3>影響</h3>
+        <p>攻撃者は他ユーザーの注文内容と配送情報を取得できます。連番のIDによって対象を推測しやすく、特殊値のゼロによって注文全件を一度に取得できます。</p>
+        <h3>対策</h3>
+        <pre><code>const order = db
+  .prepare('SELECT * FROM orders WHERE id = ? AND owner = ?')
+  .get(Number(orderId), authenticatedUser);</code></pre>
+        <p>信頼できるサーバー側セッションからユーザーを識別し、注文ごとの所有権を検証してください。ゼロIDによる全件取得を削除し、存在しない注文と権限のない注文には同一の汎用レスポンスを返してください。</p>
+      </article>
+
+      <article class="finding">
+        <span class="badge medium">中</span>
+        <h2>VS-03 — 反射型クロスサイトスクリプティング</h2>
+        <p><strong>影響を受けるルート</strong> <code>GET /xss?q=</code></p>
+        <p><code>q</code>パラメーターが出力エンコードされずにHTMLへ挿入されます。次のペイロードが結果要素内へそのまま返されることを確認しました。</p>
+        <pre><code>&lt;img src=x onerror=alert(document.domain)&gt;</code></pre>
+        <h3>影響</h3>
+        <p>細工されたリンクを別のユーザーが開くと、VulnShopのオリジン上でJavaScriptを実行できます。実運用アプリケーションでは、被害者が利用できる操作やデータへのアクセスにつながります。</p>
+        <h3>対策</h3>
+        <pre><code>result = `&lt;div class="result"&gt;Showing results for
+  &lt;strong&gt;${escapeHtml(query)}&lt;/strong&gt;&lt;/div&gt;`;</code></pre>
+        <p>出力先のコンテキストに適したエンコードを適用してください。追加の防御として、制限の厳しいContent Security Policyも設定してください。</p>
+      </article>
+
+      <article class="finding">
+        <span class="badge low">低</span>
+        <h2>VS-04 — データベースエラー情報の開示</h2>
+        <p>不正な検索入力によって発生したSQLiteのエラーがクライアントへ直接返されます。単一の引用符を入力すると、画面上に<code>Database error</code>が表示され、クエリの解析動作を攻撃者が把握できます。</p>
+        <h3>対策</h3>
+        <p>詳細なエラーはサーバー側のみに記録してください。クライアントには一定の汎用メッセージと内部照合用IDを返してください。</p>
+      </article>
+
+      <article class="finding">
+        <span class="badge info">情報</span>
+        <h2>VS-05 — ブラウザー防御ヘッダーの不足</h2>
+        <p><code>X-Content-Type-Options: nosniff</code>は設定されていますが、Content Security Policyおよびフレーム表示を制限するディレクティブはありませんでした。</p>
+        <h3>対策</h3>
+        <p>XSSの原因を修正した後、制限の厳しいContent Security Policyを設定してください。フレーム表示の制御にはCSPの<code>frame-ancestors</code>ディレクティブを使用してください。</p>
+      </article>
+
+      <section>
+        <h2>評価手法</h2>
+        <p>エンドポイントの探索、パラメーター改変、反射入力の分析、オブジェクト単位の認可検証、SQLメタ文字とUNIONクエリのテスト、レスポンスヘッダーの確認、対象を絞ったソースレビューを実施しました。能動的なテストはすべて<code>127.0.0.1:8000</code>とインメモリの初期データに限定しました。</p>
+      </section>
+
+      <section>
+        <h2>制限事項</h2>
+        <p>本評価は現在のHTTPルートとソースコードを対象としています。このローカルラボには該当するコンポーネントが存在しないため、展開基盤、TLS、外部依存関係、永続化層、認証済みセッション管理は対象外です。XSSのブラウザー実行は、未エンコードのレスポンスと標準的なHTML動作から判断しました。外部システムはテストしていません。</p>
+      </section>
+
+      <section>
+        <h2>推奨する修正順序</h2>
+        <ol>
+          <li>SQL文字列の連結をパラメーター化クエリへ置き換える。</li>
+          <li>信頼できる認証と注文ごとの所有権検証を実装し、<code>order_id=0</code>の動作を削除する。</li>
+          <li>反射される出力をエンコードし、制限の厳しいContent Security Policyを設定する。</li>
+          <li>クライアントへ表示されるデータベースエラーを汎用レスポンスへ置き換える。</li>
+          <li>主要3脆弱性に対する自動回帰テストを追加する。</li>
+        </ol>
+      </section>
+    </main>
+
+    <footer>VulnShop ローカルセキュリティ学習用報告書 · 2026年11月27日作成</footer>
+  </div>
+</body>
+</html>
